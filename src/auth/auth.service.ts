@@ -29,6 +29,7 @@ import { SessionService } from '../session/session.service';
 import { StatusEnum } from '../statuses/statuses.enum';
 import { User } from '../users/domain/user';
 import { AuthTelegramLoginDto } from './dto/auth-telegram-login.dto';
+import './telegram-polyfill'; // Import polyfills before telegram package
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { Api } from 'telegram/tl';
@@ -555,53 +556,79 @@ export class AuthService {
     let client: TelegramClient | null = null;
 
     try {
+      // Validate session string format
+      if (!loginDto.sessionString || loginDto.sessionString.length < 10) {
+        throw new UnauthorizedException('Invalid or empty session string');
+      }
+
       // Initialize Telegram client with session string
       const telegramSession = new StringSession(loginDto.sessionString);
-      client = new TelegramClient(
-        telegramSession,
-        parseInt(
-          this.configService.getOrThrow('auth.telegramApiId', { infer: true }),
-        ),
-        this.configService.getOrThrow('auth.telegramApiHash', { infer: true }),
-        {
-          connectionRetries: 3,
-          timeout: 30000,
-          retryDelay: 1000,
-          autoReconnect: false,
-          useWSS: false,
-          useIPV6: false,
-          baseLogger: undefined,
-          deviceModel: 'Desktop',
-          systemVersion: 'Windows 10',
-          appVersion: '1.0.0',
-          langCode: 'en',
-          testServers: false,
-          connection: ConnectionTCPFull,
-        },
+
+      const apiId = parseInt(
+        this.configService.getOrThrow('auth.telegramApiId', {
+          infer: true,
+        }),
+      );
+      const apiHash = this.configService.getOrThrow('auth.telegramApiHash', {
+        infer: true,
+      });
+
+      if (!apiId || !apiHash) {
+        throw new Error('Telegram API credentials not configured');
+      }
+
+      client = new TelegramClient(telegramSession, apiId, apiHash, {
+        connectionRetries: 3,
+        timeout: 45000,
+        retryDelay: 1500,
+        autoReconnect: false,
+        useWSS: false, // Force TCP instead of WebSocket
+        useIPV6: false,
+        baseLogger: undefined,
+        deviceModel: 'Server',
+        systemVersion: 'Node.js',
+        appVersion: '1.0.0',
+        langCode: 'en',
+        testServers: false,
+        connection: ConnectionTCPFull, // Force secure TCP connection on port 443
+      });
+
+      console.log('Attempting to connect to Telegram...');
+
+      // Connect with timeout
+      const connectPromise = client.connect();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timeout')), 30000),
       );
 
-      // Connect with better error handling
-      await client.connect();
+      await Promise.race([connectPromise, timeoutPromise]);
 
-      // Wait a bit to ensure connection is stable
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      //
-      // // Check if still connected before making API call
+      console.log('Connected to Telegram successfully');
+
+      // Verify connection is still active
       if (!client.connected) {
-        throw new Error('Connection lost before API call');
+        throw new Error('Connection lost immediately after connecting');
       }
 
-      const me = (await client.getMe()) as Api.User;
+      // Get user info with timeout
+      console.log('Fetching user info...');
+      const getMePromise = client.getMe();
+      const getMeTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('GetMe timeout')), 15000),
+      );
 
-      if (!me) {
-        throw new UnauthorizedException('Invalid Telegram session');
+      const me = (await Promise.race([
+        getMePromise,
+        getMeTimeoutPromise,
+      ])) as Api.User;
+
+      if (!me || !me.id) {
+        throw new UnauthorizedException(
+          'Unable to fetch user info - invalid session',
+        );
       }
 
-      // const me = {
-      //   id: 'testId',
-      //   firstName: 'testFirstName',
-      //   lastName: 'testLastName',
-      // };
+      console.log(`Telegram user authenticated: ${me.id}`);
 
       // Find or create user
       let user = await this.usersService.findBySocialIdAndProvider({
@@ -665,12 +692,28 @@ export class AuthService {
       };
     } catch (error) {
       console.error('Telegram auth error:', error);
-      throw new UnauthorizedException('Invalid Telegram session');
+
+      // Provide more specific error messages
+      if (error.message?.includes('UNAUTHORIZED')) {
+        throw new UnauthorizedException('Telegram session expired or invalid');
+      } else if (error.message?.includes('timeout')) {
+        throw new UnauthorizedException(
+          'Telegram connection timeout - please try again',
+        );
+      } else if (error.message?.includes('Connection')) {
+        throw new UnauthorizedException(
+          'Unable to connect to Telegram servers',
+        );
+      }
+
+      throw new UnauthorizedException('Telegram authentication failed');
     } finally {
       // Ensure client is properly disconnected
       if (client) {
         try {
+          console.log('Disconnecting from Telegram...');
           await client.disconnect();
+          console.log('Disconnected from Telegram successfully');
         } catch (disconnectError) {
           console.error(
             'Error disconnecting Telegram client:',
@@ -687,25 +730,52 @@ export class AuthService {
     let client: TelegramClient | null = null;
 
     try {
+      if (!loginDto.sessionString || loginDto.sessionString.length < 10) {
+        return {
+          success: false,
+          error: 'Invalid or empty session string',
+        };
+      }
+
       const telegramSession = new StringSession(loginDto.sessionString);
-      client = new TelegramClient(
-        telegramSession,
-        parseInt(
-          this.configService.getOrThrow('auth.telegramApiId', { infer: true }),
-        ),
-        this.configService.getOrThrow('auth.telegramApiHash', { infer: true }),
-        {
-          connectionRetries: 1,
-          timeout: 15000,
-          useWSS: false,
-          useIPV6: false,
-          baseLogger: undefined,
-          connection: ConnectionTCPFull,
-        },
+      const apiId = parseInt(
+        this.configService.getOrThrow('auth.telegramApiId', { infer: true }),
+      );
+      const apiHash = this.configService.getOrThrow('auth.telegramApiHash', {
+        infer: true,
+      });
+
+      client = new TelegramClient(telegramSession, apiId, apiHash, {
+        connectionRetries: 2,
+        timeout: 25000,
+        useWSS: false, // Force TCP instead of WebSocket
+        useIPV6: false,
+        baseLogger: undefined,
+        deviceModel: 'Server',
+        systemVersion: 'Node.js',
+        autoReconnect: false,
+        connection: ConnectionTCPFull, // Force secure TCP connection on port 443
+      });
+
+      // Connect with timeout
+      const connectPromise = client.connect();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timeout')), 20000),
       );
 
-      await client.connect();
-      await client.getMe();
+      await Promise.race([connectPromise, timeoutPromise]);
+
+      if (!client.connected) {
+        throw new Error('Connection lost immediately after connecting');
+      }
+
+      // Test getMe with timeout
+      const getMePromise = client.getMe();
+      const getMeTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('GetMe timeout')), 10000),
+      );
+
+      await Promise.race([getMePromise, getMeTimeoutPromise]);
 
       return {
         success: true,
