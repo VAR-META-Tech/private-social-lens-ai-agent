@@ -12,9 +12,9 @@ up: ## Start all services for development
 	@echo "🚀 Starting development environment..."
 	@if [ "$$(uname -m)" = "arm64" ] && [ "$$(uname -s)" = "Darwin" ]; then \
 		echo "📱 Detected Apple Silicon, using linux/amd64 platform..."; \
-		DOCKER_DEFAULT_PLATFORM=linux/amd64 docker-compose up -d; \
+		DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose up -d; \
 	else \
-		docker-compose up -d; \
+		docker compose up -d; \
 	fi
 	@echo "✅ Services started!"
 	@echo "📊 Qdrant UI: http://localhost:6333/dashboard"
@@ -29,15 +29,15 @@ test: ## Run tests with test environment
 	@echo "🧪 Starting test environment..."
 	@if [ "$$(uname -m)" = "arm64" ] && [ "$$(uname -s)" = "Darwin" ]; then \
 		echo "📱 Detected Apple Silicon, using linux/amd64 platform..."; \
-		DOCKER_DEFAULT_PLATFORM=linux/amd64 docker-compose -f docker-compose.relational.test.yaml up -d; \
+		DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f docker-compose.relational.test.yaml up -d; \
 	else \
-		docker-compose -f docker-compose.relational.test.yaml up -d; \
+		docker compose -f docker-compose.relational.test.yaml up -d; \
 	fi
 	@sleep 15
 	@echo "🧪 Running tests..."
 	npm run test:e2e
 	@echo "🛑 Stopping test environment..."
-	docker-compose -f docker-compose.relational.test.yaml down
+	docker compose -f docker-compose.relational.test.yaml down
 
 ci: ## Run full CI pipeline with e2e tests
 	@echo "🚀 Starting CI pipeline..."
@@ -52,41 +52,41 @@ ci-start: ## Start CI environment only
 	@echo "🚀 Starting CI environment..."
 	@if [ "$$(uname -m)" = "arm64" ] && [ "$$(uname -s)" = "Darwin" ]; then \
 		echo "📱 Detected Apple Silicon, using linux/amd64 platform..."; \
-		DOCKER_DEFAULT_PLATFORM=linux/amd64 docker-compose -f docker-compose.relational.ci.yaml up -d; \
+		DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f docker-compose.relational.ci.yaml up -d; \
 	else \
-		docker-compose -f docker-compose.relational.ci.yaml up -d; \
+		docker compose -f docker-compose.relational.ci.yaml up -d; \
 	fi
 	@echo "✅ CI environment ready!"
 
 down: ## Stop all services
 	@echo "🛑 Stopping all services..."
-	docker-compose down
-	docker-compose -f docker-compose.relational.test.yaml down 2>/dev/null || true
-	docker-compose -f docker-compose.relational.ci.yaml down 2>/dev/null || true
+	docker compose down
+	docker compose -f docker-compose.relational.test.yaml down 2>/dev/null || true
+	docker compose -f docker-compose.relational.ci.yaml down 2>/dev/null || true
 	@echo "✅ All services stopped"
 
 clean: ## Stop and remove all containers, volumes, and networks
 	@echo "🧹 Cleaning up all Docker resources..."
-	docker-compose down -v --remove-orphans
-	docker-compose -f docker-compose.relational.test.yaml down -v --remove-orphans 2>/dev/null || true
-	docker-compose -f docker-compose.relational.ci.yaml down -v --remove-orphans 2>/dev/null || true
+	docker compose down -v --remove-orphans
+	docker compose -f docker-compose.relational.test.yaml down -v --remove-orphans 2>/dev/null || true
+	docker compose -f docker-compose.relational.ci.yaml down -v --remove-orphans 2>/dev/null || true
 	@echo "✅ Cleanup complete"
 
 logs: ## Show logs for all services
-	docker-compose logs -f
+	docker compose logs -f
 
 logs-ollama: ## Show Ollama logs
-	docker-compose logs -f ollama
+	docker compose logs -f ollama
 
 logs-qdrant: ## Show Qdrant logs
-	docker-compose logs -f qdrant
+	docker compose logs -f qdrant
 
 logs-api: ## Show API logs
-	docker-compose logs -f api
+	docker compose logs -f api
 
 status: ## Show status of all services
 	@echo "📋 Service Status:"
-	docker-compose ps
+	docker compose ps
 
 models: ## List available Ollama models
 	@echo "🤖 Available Ollama models:"
