@@ -54,6 +54,9 @@ AUTH_CONFIRM_EMAIL_TOKEN_EXPIRES_IN=1d
 # Telegram Configuration
 TELEGRAM_API_ID=your_api_id_here
 TELEGRAM_API_HASH=your_api_hash_here
+TELEGRAM_DC_ID=5
+TELEGRAM_DC_HOST=91.108.56.130
+TELEGRAM_DC_PORT=443
 
 # OpenAI Configuration
 OPENAI_API_KEY=your-openai-api-key-here

@@ -11,4 +11,7 @@ export type AuthConfig = {
   confirmEmailExpires?: ms.StringValue;
   telegramApiId?: string;
   telegramApiHash?: string;
+  telegramDcId?: string;
+  telegramDcHost?: string;
+  telegramDcPort?: string;
 };

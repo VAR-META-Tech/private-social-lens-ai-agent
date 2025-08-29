@@ -60,6 +60,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - ${APP_PORT}:${APP_PORT}
+    volumes:
+      - ./.env:/usr/src/app/.env:ro
 
 volumes:
   boilerplate-db:

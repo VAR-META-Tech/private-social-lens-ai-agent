@@ -35,6 +35,15 @@ class EnvironmentVariablesValidator {
 
   @IsString()
   TELEGRAM_API_HASH: string;
+
+  @IsString()
+  TELEGRAM_DC_ID: string;
+
+  @IsString()
+  TELEGRAM_DC_HOST: string;
+
+  @IsString()
+  TELEGRAM_DC_PORT: string;
 }
 
 export default registerAs<AuthConfig>('auth', () => {
@@ -52,5 +61,8 @@ export default registerAs<AuthConfig>('auth', () => {
       .AUTH_CONFIRM_EMAIL_TOKEN_EXPIRES_IN as ms.StringValue,
     telegramApiId: process.env.TELEGRAM_API_ID,
     telegramApiHash: process.env.TELEGRAM_API_HASH,
+    telegramDcId: process.env.TELEGRAM_DC_ID,
+    telegramDcHost: process.env.TELEGRAM_DC_HOST,
+    telegramDcPort: process.env.TELEGRAM_DC_PORT,
   };
 });

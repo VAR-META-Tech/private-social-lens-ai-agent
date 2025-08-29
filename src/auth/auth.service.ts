@@ -29,20 +29,36 @@ import { SessionService } from '../session/session.service';
 import { StatusEnum } from '../statuses/statuses.enum';
 import { User } from '../users/domain/user';
 import { AuthTelegramLoginDto } from './dto/auth-telegram-login.dto';
-import { TelegramClient } from 'telegram';
+import { Api, TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 // import { Api } from 'telegram/tl';
 import { ConnectionTCPFull } from 'telegram/network/connection';
 
 @Injectable()
 export class AuthService {
+  private telegramDcId: number;
+  private telegramDcHost: string;
+  private telegramDcPort: number;
+
   constructor(
     private jwtService: JwtService,
     private usersService: UsersService,
     private sessionService: SessionService,
     private mailService: MailService,
     private configService: ConfigService<AllConfigType>,
-  ) {}
+  ) {
+    this.telegramDcId = Number(
+      this.configService.getOrThrow('auth.telegramDcId', {
+        infer: true,
+      }),
+    );
+    this.telegramDcHost = this.configService.getOrThrow('auth.telegramDcHost', {
+      infer: true,
+    });
+    this.telegramDcPort = this.configService.getOrThrow('auth.telegramDcPort', {
+      infer: true,
+    });
+  }
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
     const user = await this.usersService.findByEmail(loginDto.email);
@@ -557,6 +573,11 @@ export class AuthService {
     try {
       // Initialize Telegram client with session string
       const telegramSession = new StringSession(loginDto.sessionString);
+      telegramSession.setDC(
+        this.telegramDcId,
+        this.telegramDcHost,
+        this.telegramDcPort,
+      );
       client = new TelegramClient(
         telegramSession,
         parseInt(
@@ -565,47 +586,26 @@ export class AuthService {
         this.configService.getOrThrow('auth.telegramApiHash', { infer: true }),
         {
           connectionRetries: 3,
-          timeout: 30000,
-          retryDelay: 1000,
-          autoReconnect: false,
-          useWSS: false,
-          useIPV6: false,
-          baseLogger: undefined,
-          deviceModel: 'Desktop',
-          systemVersion: 'Windows 10',
-          appVersion: '1.0.0',
-          langCode: 'en',
-          testServers: false,
-          connection: ConnectionTCPFull,
+          timeout: 10000,
         },
       );
 
       // Connect with better error handling
-      // await client.connect();
+      await client.connect();
 
-      // Wait a bit to ensure connection is stable
-      // await new Promise((resolve) => setTimeout(resolve, 1000));
-      //
-      // // Check if still connected before making API call
-      // if (!client.connected) {
-      //   throw new Error('Connection lost before API call');
-      // }
+      if (await client.isUserAuthorized()) {
+        console.log('User is authorized.');
+      } else {
+        throw new Error('User is not authorized. Please log in.');
+      }
 
-      // const me = (await client.getMe()) as Api.User;
-      //
-      // if (!me) {
-      //   throw new UnauthorizedException('Invalid Telegram session');
-      // }
+      const me = (await client.getMe()) as Api.User;
 
-      const me = {
-        id: loginDto.telegramId,
-        firstName: null,
-        lastName: null,
-      };
+      if (!me) throw new Error('Get telegram user unsuccessfully!');
 
       // Find or create user
       let user = await this.usersService.findBySocialIdAndProvider({
-        socialId: me.id.toString(),
+        socialId: String(me.id?.valueOf()),
         provider: AuthProvidersEnum.telegram,
       });
 
